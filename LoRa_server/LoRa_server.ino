@@ -6,7 +6,7 @@
 int trimPin = A0;  //  Pin to take in analog position/potentiometer voltage
 int sailTrim = 0;
 int servoPosition = 1520;  // Initialize rudder position to neutral
-long servoUpdateInterval = 30;  // Servo updates every 15 ms (smooth-ish)
+long servoUpdateInterval = 15;  // Servo updates every 15 ms (smooth-ish)
 unsigned long previousTimeServo = millis();
 long radioUpdateInterval = 500;  // Interval for updating LoRa radio communication;
 unsigned long previousTimeRadio = millis();

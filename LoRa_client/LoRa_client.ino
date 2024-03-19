@@ -7,10 +7,11 @@ char msg;
 const int rs = 7, en = 6, d4 = 5, d5 = 4,  d6 = 3, d7 = 2;  // Set pins for LCD. Some are used by the LoRa board but not sure which?
 int sensorPin = A2;
 int potVoltage = 0;
-long transmitUpdateInterval = 500;  // Send a radio transmit via LoRa every # milliseconds
+long transmitUpdateInterval = 60;  // Send a radio transmit via LoRa every # milliseconds
 unsigned long previousTransmit = millis();
 
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+
 
 void setup() {
   lcd.begin(16, 2);  // Start LCD for 16 x 2 grid
@@ -28,14 +29,25 @@ void setup() {
   lcd.clear();
 }
 
+
 void loop() {
   unsigned long currentTime = millis();  // Get the current time for "multithreading"
-  
-  // Get the controller pot readings
-  potVoltage = analogRead(sensorPin);
-  potVoltage = map(potVoltage, 0, 1023, 1000, 2000);     // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
 
+  controller_read_packet();  // Look for and read an incoming packet, if available
   
+  potVoltage = analogRead(sensorPin);  // Get the sensor voltave
+  potVoltage = map(potVoltage, 0, 1023, 1000, 2000);  // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
+
+
+  // Transmit a packet if the time interval has elapsed.
+  if (currentTime - previousTransmit > transmitUpdateInterval)  {
+    controller_send_packet();
+  }
+}
+
+
+void controller_read_packet() {
+
   // try to parse packet, if available
   int packetSize = LoRa.parsePacket();  // TODO: investigate this function
   if (packetSize) {
@@ -49,19 +61,13 @@ void loop() {
       lcd.print(msg);
     }
   }
-   // Transmit a packet if the time interval has elapsed.
-  if (currentTime - previousTransmit > transmitUpdateInterval)  {
-    controller_send_packet();
-    }  
 }
-
 
 // Send a data packet
 void controller_send_packet() {
-    // Send outgoing packet
   Serial.println(potVoltage);
   LoRa.beginPacket();
   LoRa.print(potVoltage);
   LoRa.endPacket();
   previousTransmit = millis();
-  }
+}
