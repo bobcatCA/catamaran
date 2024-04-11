@@ -8,14 +8,13 @@ int sailTrim = 0;
 int servoPosition = 1520;  // Initialize rudder position to neutral
 long servoUpdateInterval = 15;  // Servo updates every 15 ms (smooth-ish)
 unsigned long previousTimeServo = millis();
-long radioUpdateInterval = 500;  // Interval for updating LoRa radio communication;
-unsigned long previousTimeRadio = millis();
 
 // Globals for new Duplex communication
 const int csPin = 7;          // LoRa radio chip select
 const int resetPin = 6;       // LoRa radio reset
 const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
 
+String incoming;              // incoming message
 String outgoing;              // outgoing message
 
 byte msgCount = 0;            // count of outgoing messages
@@ -40,15 +39,18 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentTime = millis();  // Take current time for "multithreading"
-
   // receive_message();  // Receive a message over LoRa
-  onReceive(LoRa.parsePacket());
+  incoming = onReceive(LoRa.parsePacket());
+  if (incoming.length() == 30)  {
+    servoPosition = incoming.substring(13, 16).toInt();
+    servoPosition = map(servoPosition, 0, 1023, 1000, 2000);
+    Serial.println(servoPosition);
+    }  
 
   sailTrim = analogRead(trimPin);
 
   // Update servo position if the update interval has elapsed
-  if (currentTime - previousTimeServo > servoUpdateInterval) {
+  if (millis() - previousTimeServo > servoUpdateInterval) {
 
     // Servo control
     rudderServo.writeMicroseconds(servoPosition);
@@ -57,12 +59,6 @@ void loop() {
     previousTimeServo = millis();
   }
 
-  // Send new packet if the radio update interval has elapsed
-  if (currentTime - previousTimeRadio > radioUpdateInterval) {
-    //send_message();
-    //delay(300);
-    
-  }
   if (millis() - lastSendTime > interval) {
     String message = "sailtrim" + String(sailTrim);   // send a message
     sendMessage(message);
@@ -72,48 +68,9 @@ void loop() {
     }
 }
 
-/*
-void receive_message() {
-  // Receive packet via LoRa client (remote control)
-  int packetSize = LoRa.parsePacket();  // TODO: investigate this function
-  char msg[packetSize];  // Create a character array equal to the size of the incoming packet
-  if (packetSize) {
-    Serial.println("Received packet");
-    int i = 0;
 
-    // Read packet
-    while (LoRa.available()) {
-      char character = LoRa.read();
-
-      msg[i] = character;
-      i++;
-    }
-    const char *ptr_msg = msg;
-    servoPosition = atoi(ptr_msg);
-    Serial.println(msg);
-    Serial.println("packet complete");  
-    // servoPosition = atoi(msg);
-    Serial.println(servoPosition);
-  }
-}*/
-
-
-void send_message() {
-    sailTrim = analogRead(trimPin);  // Get the sail trim angle
-    Serial.println("Sending packet: ");  // TODO: delete once debugging complete
-    Serial.println(sailTrim);
-
-    // send packet
-    LoRa.beginPacket();
-    LoRa.print("voltage: ");
-    LoRa.print(sailTrim);
-    LoRa.endPacket();  // TODO: Does this add a header or something?
-    previousTimeRadio = millis();  // Update previous time for radio send
-  }
-
-
-void onReceive(int packetSize) {
-  if (packetSize == 0) return;          // if there's no packet, return
+String onReceive(int packetSize) {
+  if (packetSize == 0) return "NO PACKET";  // if there's no packet, return
 
   // read packet header bytes:
   int recipient = LoRa.read();          // recipient address
@@ -121,32 +78,33 @@ void onReceive(int packetSize) {
   byte incomingMsgId = LoRa.read();     // incoming msg ID
   byte incomingLength = LoRa.read();    // incoming msg length
 
-  String incoming = "";
+  String incomingMessage = "";
 
   while (LoRa.available()) {
-    incoming += (char)LoRa.read();
+    incomingMessage += (char)LoRa.read();
   }
 
-  if (incomingLength != incoming.length()) {   // check length for error
+  if (incomingLength != incomingMessage.length()) {   // check length for error
     Serial.println("error: message length does not match length");
-    return;                             // skip rest of function
+    return "ERROR";                     // skip rest of function
   }
 
   // if the recipient isn't this device or broadcast,
   if (recipient != localAddress && recipient != 0xFF) {
     Serial.println("This message is not for me.");
-    return;                             // skip rest of function
+    return "ERROR";                     // skip rest of function
   }
 
   // if message is for this device, or broadcast, print details:
   /*Serial.println("Received from: 0x" + String(sender, HEX));
   Serial.println("Sent to: 0x" + String(recipient, HEX));
   Serial.println("Message ID: " + String(incomingMsgId));
-  Serial.println("Message length: " + String(incomingLength));*/
-  Serial.println("Message: " + incoming);
-  /*Serial.println("RSSI: " + String(LoRa.packetRssi()));
+  Serial.println("Message length: " + String(incomingLength));
+  Serial.println("Message: " + incomingMessage);
+  Serial.println("RSSI: " + String(LoRa.packetRssi()));
   Serial.println("Snr: " + String(LoRa.packetSnr()));
   Serial.println();*/
+  return incomingMessage;
 }
 
 
