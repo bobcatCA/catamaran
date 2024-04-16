@@ -24,7 +24,7 @@ byte msgCount = 0;            // count of outgoing messages
 byte localAddress = 0xBB;     // address of this device
 byte destination = 0xFF;      // destination to send to
 long lastSendTime = 0;        // last send time
-int interval = 2000;          // interval between sends
+int interval = 50;          // interval between sends
 
 // Start LCD display
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -50,17 +50,15 @@ void setup() {
 void loop() {
 
   lcd.clear();
-  // controller_read_packet();  // Look for and read an incoming packet, if available
   incoming = onReceive(LoRa.parsePacket());
-  // Serial.println(incoming.length());
-  // Serial.println(incoming);
   if (incoming.length() == 11)  {
     Serial.println("Message: " + incoming);    
     }
     
   rudderVoltage = analogRead(rudderControlPin);  // Get the sensor voltage and convert to 10-bit value
-  // rudderVoltage = map(rudderVoltage, 0, 1023, 1000, 2000);  // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
+  rudderVoltage = map(rudderVoltage, 0, 1023, 1000, 2000);  // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
   sailVoltage = analogRead(sailControlPin);  // Get the sensor voltage and convert to 10-bit value
+  sailVoltage = map(sailVoltage, 0, 1023, 1000, 2000);
 
   // Display controller values on lcd screen
   lcd.setCursor(0, 0);
@@ -89,7 +87,6 @@ void sendMessage(String outgoing) {
   LoRa.endPacket();                     // finish packet and send it
   msgCount++;                           // increment message ID
 }
-
 
 String onReceive(int packetSize) {
   if (packetSize == 0) return "NO PACKET";  // if there's no packet, return
@@ -126,6 +123,5 @@ String onReceive(int packetSize) {
   Serial.println("RSSI: " + String(LoRa.packetRssi()));
   Serial.println("Snr: " + String(LoRa.packetSnr()));
   Serial.println();*/
-  
   return incomingMessage;
 }

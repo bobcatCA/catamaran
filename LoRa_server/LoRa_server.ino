@@ -5,7 +5,8 @@
 // Global variables
 int trimPin = A0;  //  Pin to take in analog position/potentiometer voltage
 int sailTrim = 0;
-int servoPosition = 1520;  // Initialize rudder position to neutral
+int rudderCommand;  // incoming command for rudder position
+int servoPosition;  // Initialize rudder position to neutral
 long servoUpdateInterval = 15;  // Servo updates every 15 ms (smooth-ish)
 unsigned long previousTimeServo = millis();
 
@@ -41,10 +42,8 @@ void setup() {
 void loop() {
   // receive_message();  // Receive a message over LoRa
   incoming = onReceive(LoRa.parsePacket());
-  if (incoming.length() == 30)  {
-    servoPosition = incoming.substring(13, 16).toInt();
-    servoPosition = map(servoPosition, 0, 1023, 1000, 2000);
-    Serial.println(servoPosition);
+  if (incoming.length() == 32)  {
+    rudderCommand = incoming.substring(13, 17).toInt();
     }  
 
   sailTrim = analogRead(trimPin);
@@ -52,8 +51,11 @@ void loop() {
   // Update servo position if the update interval has elapsed
   if (millis() - previousTimeServo > servoUpdateInterval) {
 
-    // Servo control
-    rudderServo.writeMicroseconds(servoPosition);
+    if (abs(rudderCommand - servoPosition) > 5)  {
+      // Servo control
+      servoPosition = servoPosition + (rudderCommand - servoPosition) / 20;  // Increment slowly until the position responds (P-control of sorts)
+      rudderServo.writeMicroseconds(servoPosition);
+      }
 
     // Update previous update time to current time
     previousTimeServo = millis();
