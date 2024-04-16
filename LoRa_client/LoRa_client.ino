@@ -2,29 +2,27 @@
 #include <LoRa.h>
 #include <LiquidCrystal.h>
 
-// Global variables
-// char msg;
+// Global variables for command/control
 const int rs = 7, en = 6, d4 = 5, d5 = 4,  d6 = 3, d7 = 2;  // Set pins for LCD. Some are used by the LoRa board but not sure which?
-int rudderControlPin = A2;
-int sailControlPin = A3;
 int rudderVoltage = 0;
 int sailVoltage = 0;
-// long transmitUpdateInterval = 2000;  // Send a radio transmit via LoRa every # milliseconds
-// unsigned long previousTransmit = millis();
 
-// Globals for new send function
+// Globals for pin in/out
 const int csPin = 7;          // LoRa radio chip select
 const int resetPin = 6;       // LoRa radio reset
 const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
+int sailControlPin = A3;
+int rudderControlPin = A2;
 
+// Globals for messages incoming/outging via LoRa
 String incoming;              // incoming message
 String outgoing;              // outgoing message
-
+String lcdStatus;
 byte msgCount = 0;            // count of outgoing messages
 byte localAddress = 0xBB;     // address of this device
 byte destination = 0xFF;      // destination to send to
 long lastSendTime = 0;        // last send time
-int interval = 50;          // interval between sends
+int sendInterval = 50;          // interval between sends
 
 // Start LCD display
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -48,11 +46,11 @@ void setup() {
 
 
 void loop() {
-
   lcd.clear();
   incoming = onReceive(LoRa.parsePacket());
   if (incoming.length() == 11)  {
-    Serial.println("Message: " + incoming);    
+    Serial.println("Message: " + incoming);
+    lcdStatus = incoming;  
     }
     
   rudderVoltage = analogRead(rudderControlPin);  // Get the sensor voltage and convert to 10-bit value
@@ -64,15 +62,17 @@ void loop() {
   lcd.setCursor(0, 0);
   lcd.print(rudderVoltage);
   lcd.setCursor(0, 1);
-  lcd.print(sailVoltage);
+  lcd.print(sailVoltage);    
+  lcd.setCursor(5, 1);
+  lcd.print(lcdStatus);
   delay(10);
-  
-  if (millis() - lastSendTime > interval) {
+
+  if (millis() - lastSendTime > sendInterval) {
     String message = "ruddercommand" + String(rudderVoltage) + "sailcommand" + String(sailVoltage);
     sendMessage(message);
     Serial.println("Sending " + message);
     lastSendTime = millis();            // timestamp the message
-    interval = random(2000) + 1000;    // 2-3 seconds
+    sendInterval = random(sendInterval) + 1000;    // 2-3 seconds
     }
 }
 

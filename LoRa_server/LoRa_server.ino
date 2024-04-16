@@ -2,27 +2,27 @@
 #include <SPI.h>
 #include <LoRa.h>
 
-// Global variables
-int trimPin = A0;  //  Pin to take in analog position/potentiometer voltage
+// Global variables for command/control
 int sailTrim = 0;
 int rudderCommand;  // incoming command for rudder position
 int servoPosition;  // Initialize rudder position to neutral
 long servoUpdateInterval = 15;  // Servo updates every 15 ms (smooth-ish)
 unsigned long previousTimeServo = millis();
 
-// Globals for new Duplex communication
+// Globals for pin in/out
 const int csPin = 7;          // LoRa radio chip select
 const int resetPin = 6;       // LoRa radio reset
 const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
+int trimPin = A0;  //  Pin to take in analog position/potentiometer voltage
 
+// Globals for message incoming/outgoing via LoRa
 String incoming;              // incoming message
 String outgoing;              // outgoing message
-
 byte msgCount = 0;            // count of outgoing messages
 byte localAddress = 0xBB;     // address of this device
 byte destination = 0xFF;      // destination to send to
 long lastSendTime = 0;        // last send time
-int interval = 2000;          // interval between sends
+int sendInterval = 2000;          // interval between sends
 
 // Start rudder servo
 Servo rudderServo;
@@ -53,7 +53,7 @@ void loop() {
 
     if (abs(rudderCommand - servoPosition) > 5)  {
       // Servo control
-      servoPosition = servoPosition + (rudderCommand - servoPosition) / 20;  // Increment slowly until the position responds (P-control of sorts)
+      servoPosition = servoPosition + (rudderCommand - servoPosition) / 5;  // Increment slowly until the position responds (P-control of sorts)
       rudderServo.writeMicroseconds(servoPosition);
       }
 
@@ -61,12 +61,12 @@ void loop() {
     previousTimeServo = millis();
   }
 
-  if (millis() - lastSendTime > interval) {
+  if (millis() - lastSendTime > sendInterval) {
     String message = "sailtrim" + String(sailTrim);   // send a message
     sendMessage(message);
     Serial.println("Sending " + message);
     lastSendTime = millis();            // timestamp the message
-    interval = random(2000) + 1000;    // 2-3 seconds
+    sendInterval = random(2000) + 1000;    // 2-3 seconds
     }
 }
 
