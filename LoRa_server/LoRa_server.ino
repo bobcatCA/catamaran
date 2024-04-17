@@ -16,13 +16,14 @@ const int irqPin = 1;         // change for your board; must be a hardware inter
 int trimPin = A0;  //  Pin to take in analog position/potentiometer voltage
 
 // Globals for message incoming/outgoing via LoRa
-String incoming;              // incoming message
-String outgoing;              // outgoing message
+
 byte msgCount = 0;            // count of outgoing messages
 byte localAddress = 0xBB;     // address of this device
 byte destination = 0xFF;      // destination to send to
-long lastSendTime = 0;        // last send time
 int sendInterval = 2000;          // interval between sends
+long lastSendTime = 0;        // last send time
+String incoming;              // incoming message
+String outgoing;              // outgoing message
 
 // Start rudder servo
 Servo rudderServo;
@@ -40,19 +41,22 @@ void setup() {
 }
 
 void loop() {
-  // receive_message();  // Receive a message over LoRa
+  int expectedPacketLength = 32;  // Number of characters of normal incoming message
   incoming = onReceive(LoRa.parsePacket());
-  if (incoming.length() == 32)  {
+
+  // Parse the incoming packet. If the length is correct, parse the various commands from the incoming packet
+  if (incoming.length() == expectedPacketLength)  {
     rudderCommand = incoming.substring(13, 17).toInt();
     }  
 
+  // Read the sensor values to be sent back to the controller node
   sailTrim = analogRead(trimPin);
 
   // Update servo position if the update interval has elapsed
   if (millis() - previousTimeServo > servoUpdateInterval) {
 
+    // Servo control only if the setpoint is well off of the real position
     if (abs(rudderCommand - servoPosition) > 5)  {
-      // Servo control
       servoPosition = servoPosition + (rudderCommand - servoPosition) / 5;  // Increment slowly until the position responds (P-control of sorts)
       rudderServo.writeMicroseconds(servoPosition);
       }
@@ -61,16 +65,18 @@ void loop() {
     previousTimeServo = millis();
   }
 
+  // Send an outgoing packet to the controller note if enough time has elapsed.
   if (millis() - lastSendTime > sendInterval) {
     String message = "sailtrim" + String(sailTrim);   // send a message
     sendMessage(message);
     Serial.println("Sending " + message);
     lastSendTime = millis();            // timestamp the message
-    sendInterval = random(2000) + 1000;    // 2-3 seconds
+    sendInterval = random(sendInterval) + 1000;    // 2-3 seconds
     }
 }
 
 
+// Function for receiving packet.
 String onReceive(int packetSize) {
   if (packetSize == 0) return "NO PACKET";  // if there's no packet, return
 
@@ -110,6 +116,7 @@ String onReceive(int packetSize) {
 }
 
 
+// Function for sending packet.
 void sendMessage(String outgoing) {
   LoRa.beginPacket();                   // start packet
   LoRa.write(destination);              // add destination address
