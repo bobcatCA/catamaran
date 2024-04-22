@@ -2,17 +2,24 @@
 #include <LoRa.h>
 #include <LiquidCrystal.h>
 
+// Define addresses for pin in/out (LCD)
+#define rsPin 7
+#define enPin 6
+#define d4Pin 5
+#define d5Pin 4
+#define d6Pin 3
+#define d7Pin 2
+
+// Define addresses for pin in/out (LoRa and Control)
+#define csPin 7
+#define irqPin 1
+#define resetPin 6
+#define rudderControlPin A0
+#define sailControlPin A2
+
 // Global variables for command/control
-const int rs = 7, en = 6, d4 = 5, d5 = 4,  d6 = 3, d7 = 2;  // Set pins for LCD. Some are used by the LoRa board but not sure which?
 int rudderVoltage = 0;
 int sailVoltage = 0;
-
-// Globals for pin in/out
-const int csPin = 7;          // LoRa radio chip select
-const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
-const int resetPin = 6;       // LoRa radio reset
-int rudderControlPin = A0;
-int sailControlPin = A2;
 
 // Globals for messages incoming/outging via LoRa
 byte localAddress = 0xBB;     // address of this device
@@ -22,7 +29,7 @@ int sailTrim;
 long lastSendTime = 0;        // last send time
 
 // Start LCD display
-LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+LiquidCrystal lcd(rsPin, enPin, d4Pin, d5Pin, d6Pin, d7Pin);
 
 void setup() {
   lcd.begin(16, 2);  // Start LCD for 16 x 2 grid
@@ -42,7 +49,7 @@ void setup() {
 
 
 void loop() {
-  // Cleaer LCD and get an incoming data packet from LoRa. TODO: fix onReceive return value.
+  // Clear LCD and get an incoming data packet from LoRa. TODO: fix onReceive return value.
   lcd.clear();
   String incoming = onReceive(LoRa.parsePacket());
 
@@ -53,18 +60,23 @@ void loop() {
   int sailCommandDegrees = map(sailVoltage, 0, 1023, -90, 90);
   int sailTrimDegrees = map(sailTrim, 0, 1023, -90, 90);
 
-  // Display controller values on lcd screen
+  // Display controller values on lcd screen (1st line - rudder control)
   lcd.setCursor(0, 0);
+  lcd.print("rudd ");
+  lcd.setCursor(6, 0);
   lcd.print(rudderCommandDegrees);
-  lcd.setCursor(0, 1);
+
+  // 2nd line (sail control and reading)
+  lcd.setCursor(0,1);
+  lcd.print("sail ");
+  lcd.setCursor(6, 1);
   lcd.print(sailCommandDegrees);
-  lcd.setCursor(5, 1);
+  lcd.setCursor(11, 1);
   lcd.print(sailTrimDegrees);
   delay(10);
 
   if (millis() - lastSendTime > sendInterval) {
-    String message = "command";
-    sendMessage(rudderVoltage, sailVoltage, message);
+    sendMessage(rudderVoltage, sailVoltage);
     lastSendTime = millis();            // timestamp the message
     sendInterval = random(sendInterval) + 100;    // 200-300 milliseconds
   }
@@ -72,30 +84,23 @@ void loop() {
 
 
 // Function for sending packet.
-void sendMessage(int sensorReading1, int sensorReading2, String outgoing) {
+void sendMessage(int sensorReading1, int sensorReading2) {
   LoRa.beginPacket();                   // start packet
   LoRa.write(destination);              // add destination address
   LoRa.write(localAddress);             // add sender address
-  //LoRa.write(msgCount);                 // add message ID
-  //LoRa.write(outgoing.length());        // add payload length
   LoRa.write(sensorReading1 & 255);  // Pad so the message is always 16-bit length
   LoRa.write((sensorReading1 >> 8) & 0xff);  // Shift 8 bits
   LoRa.write(sensorReading2 & 255);  // Pad so the message is always 16-bit length
   LoRa.write((sensorReading2 >> 8) & 0xff);  // Shift 8 bits
-  //LoRa.print(outgoing);                 // add payload
   LoRa.endPacket();                     // finish packet and send it
-  //msgCount++;                           // increment message ID
 }
 
 String onReceive(int packetSize) {
   if (packetSize == 0) return "NO PACKET";  // if there's no packet, return
 
-
   // read packet header bytes:
   int recipient = LoRa.read();          // recipient address
   byte sender = LoRa.read();            // sender address
-  //byte incomingMsgId = LoRa.read();     // incoming msg ID
-  //byte incomingLength = LoRa.read();    // incoming msg length
   int sensorReading = LoRa.read();
   sensorReading = LoRa.read()<<8 | sensorReading;
   sailTrim = sensorReading;

@@ -8,29 +8,23 @@
 #include <Wire.h>
 
 // Define our digital pin in/out
-#define  DIR_PIN  3
-#define  ENABLE_PIN  7
-#define  STEP_PIN  2
-
-// Define our analog pin in/out
-#define  COMMAND_INPUT  2
-#define  SAIL_SENSOR  0
-#define  SPEED_PIN 5
+#define  dirPin  3
+#define  enPin  7
+#define  stepPin  2
 
 // Define our maximum and minimum speed in steps per second
-#define  MAX_SPEED 10000
-#define  MIN_SPEED 0
+#define  maximumSpeed 10000
+#define  minimumSpeed 0
 
 // Globals initialization
-int i2cMessage;
 double setpoint, input, output;  // PID variables
 double Kp = 1, Ki = 1, Kd = 1;  // PID constants (to be tuned)
-int operatingBand = 30;  // Margin within which the motor is inactive
-long analogUpdateInterval = 800;  // Frequency of analog reads, in milliseconds
+int operatingBand = 30;  // Margin within which the motor is inactive, to save power consumption
+unsigned long analogUpdateInterval = 800;  // Frequency of analog reads, in milliseconds
 unsigned long previousTimeAnalog;  // Tracks when the last analog read occured
 
 // Declare Stepper and PID
-AccelStepper stepper1(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+AccelStepper stepper1(AccelStepper::DRIVER, stepPin, dirPin);
 PID sailPID(&input, &output, &setpoint, Kp, Ki, Kd, DIRECT);
 
 void setup() {
@@ -38,16 +32,13 @@ void setup() {
   Serial.begin(9600);
   Wire.begin(4);  // Join I2C bus, address 1 assuming this is master for now?
   Wire.onReceive(receiveI2C);
-  //Serial.print("Serial initialized - Stepper Server");
 
   // The only AccelStepper value we have to set here is the max speeed, which is higher than we'll ever go
-  stepper1.setMaxSpeed(MAX_SPEED);
-  stepper1.setEnablePin(ENABLE_PIN);  // Note: The enable pin is inverted with a NOT gate to match driver input
+  stepper1.setMaxSpeed(maximumSpeed);
+  stepper1.setEnablePin(enPin);  // Note: The enable pin is inverted with a NOT gate to match driver input
   stepper1.enableOutputs();  // Set enable to TRUE (disabled if input close to setpoint)
   
   // Initialize linked variables
-  //input = analogRead(SAIL_SENSOR);
-  //setpoint = analogRead(COMMAND_INPUT);
   previousTimeAnalog = millis();
   sailPID.SetMode(AUTOMATIC);
   sailPID.SetOutputLimits(-255, 255);  // Bi-directional
@@ -57,21 +48,21 @@ void loop() {
 
   // Update analog readings if the interval of time has passed
   if (millis() - previousTimeAnalog > analogUpdateInterval)  {   
-    //setpoint = analogRead(COMMAND_INPUT);
-    //input = analogRead(SAIL_SENSOR);
-
+    
     // Compute new PID output given the new setpoint/input. scale the speed to appropriate limits.
     sailPID.Compute();
-    int current_speed = ((output / 255) * (MAX_SPEED - MIN_SPEED)) + MIN_SPEED;
+    int current_speed = ((output / 255) * (maximumSpeed - minimumSpeed)) + minimumSpeed;
     stepper1.setSpeed(current_speed);
     
     previousTimeAnalog = millis();  // Update the last time analogs were read
+    /*
     Serial.print("setpoint is: ");
     Serial.println(setpoint);
     Serial.print("input is: ");
     Serial.println(input);
     Serial.print("output is: ");
     Serial.println(output);
+    */
   }
   
   stepper1.runSpeed();
@@ -79,8 +70,6 @@ void loop() {
   // While the input and setpoint are close, shut down the motor and wait until they diverge again
   while (abs(setpoint - input) < operatingBand)  {
     stepper1.disableOutputs();
-    //setpoint = analogRead(COMMAND_INPUT);
-    //input = analogRead(SAIL_SENSOR);
     delay(25);
 
     if (abs(setpoint - input) >= operatingBand)  {
