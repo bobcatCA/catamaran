@@ -18,7 +18,7 @@
 
 // Globals initialization
 double setpoint, input, output;  // PID variables
-double Kp = 1, Ki = 1, Kd = 1;  // PID constants (to be tuned)
+double Kp = 1, Ki = 0, Kd = 0;  // PID constants (to be tuned)
 int operatingBand = 30;  // Margin within which the motor is inactive, to save power consumption
 unsigned long analogUpdateInterval = 800;  // Frequency of analog reads, in milliseconds
 unsigned long previousTimeAnalog;  // Tracks when the last analog read occured
@@ -41,7 +41,7 @@ void setup() {
   // Initialize linked variables
   previousTimeAnalog = millis();
   sailPID.SetMode(AUTOMATIC);
-  sailPID.SetOutputLimits(-255, 255);  // Bi-directional
+  sailPID.SetOutputLimits(-255, 255);  // Bi-directional for motor CW/CCW
 }
 
 void loop() {
