@@ -57,8 +57,9 @@ void loop() {
   rudderVoltage = analogRead(rudderControlPin);  // Get the sensor voltage and convert to 10-bit value
   int rudderCommandDegrees = map(rudderVoltage, 0, 1023, 0, 270);  // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
   sailVoltage = analogRead(sailControlPin);  // Get the sensor voltage and convert to 10-bit value
-  int sailCommandDegrees = map(sailVoltage, 0, 1023, -90, 90);
-  int sailTrimDegrees = map(sailTrim, 0, 1023, -90, 90);
+  int sailCommandDegrees = map(sailVoltage, 0, 1023, 0, 90);
+  // int sailTrimDegrees = map(sailTrim, 0, 1023, -90, 90);
+  int sailTrimDegrees = sailTrim;
 
   // Display controller values on lcd screen (1st line - rudder control)
   lcd.setCursor(0, 0);
@@ -76,7 +77,7 @@ void loop() {
   delay(10);
 
   if (millis() - lastSendTime > sendInterval) {
-    sendMessage(rudderVoltage, sailVoltage);
+    sendMessage(rudderVoltage, sailCommandDegrees);
     lastSendTime = millis();            // timestamp the message
     sendInterval = random(sendInterval) + 100;    // 200-300 milliseconds
   }
