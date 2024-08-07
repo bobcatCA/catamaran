@@ -15,24 +15,27 @@
 #define  stepPin  2
 
 // Define our maximum and minimum speed in steps per second
-#define  errorThreshold -20
+#define  errorThreshold -20  // Below which the sail control pauses to avoid excess line release
+#define  errorTimeout 5000  // After which the sheet is assumed to be slack, sail control pauses
 #define  maximumSpeed 10000
 #define  minimumSpeed 0
-#define  pauseTimeCheck 500
-#define  trimBand 5
-#define  trimCenter 5
+#define  pauseTimeCheck 500  // Time to pause until re-calculating status booleans
+#define  inputUpdateInterval 80  // Frequency of updating the PID calculation, ms
+#define  trimBand 5  // Acceptable error band, within which sail control pauses
+#define  trimCenter 5  // Center trim range where sail control pauses to avoid over-tension
 
 // Globals initialization
 bool onTarget = false;
 bool onMiddle = true;
 bool sheetSlack = true;
+bool statusMain = false;
 CircularBuffer<int, 10> posErrors;
 int currentSpeed = 0;
 int errorsAverage = 0;
 double setpoint, input, output;  // PID variables
-double Kp = 1, Ki = 0, Kd = 0;  // PID constants (to be tuned)
-unsigned long inputUpdateInterval = 80;  // Frequency of analog reads, in milliseconds
+double Kp = 3, Ki = 0, Kd = 0;  // PID constants (to be tuned)
 unsigned long previousTimeAnalog;  // Tracks when the last analog read occured
+unsigned long previousTimeTaught;  // Stores the last time the sheet line was known to be taught
 
 // Declare Stepper and PID
 AccelStepper stepper1(AccelStepper::DRIVER, stepPin, dirPin);
@@ -69,38 +72,22 @@ void loop() {
     // Compute the new speed setpoint and send to stepper
     currentSpeed = ((output / 255) * (maximumSpeed - minimumSpeed)) + minimumSpeed;
     previousTimeAnalog = millis();  // Update the last time analogs were read
-
-    // Compute booleans
-    if (abs(setpoint - input) < trimBand)  {
-      onTarget = true;
-    } else {
-      onTarget = false;
-    }
-
-    if (currentSpeed < 0 && abs(input) < trimCenter)  {
-      onMiddle = true;
-    } else {
-      onMiddle = false;
-    }
-
-    if (setpoint > input && errorsAverage < errorThreshold)  {
-      sheetSlack = true;
-    } else {
-      sheetSlack = false;
-    }
-    
   }
 
-  Serial.println(errorsAverage);
   // While the input and setpoint are close, shut down the motor and wait until they diverge again
   if (onTarget || onMiddle || sheetSlack)  {
+    statusMain = false;
     pauseSailControl();
-  }
-  stepper1.enableOutputs();
-  stepper1.setSpeed(currentSpeed);
+  } else {
+    statusMain = true;
+    }
 
-  // Run the stepper at the desired speed
-  stepper1.runSpeed();
+  if (statusMain)  {
+    // Run the stepper at the desired speed if no fault conditions are detected
+    stepper1.enableOutputs();
+    stepper1.setSpeed(currentSpeed);
+    stepper1.runSpeed();
+  }
 }
 
 
@@ -108,30 +95,48 @@ void loop() {
 void receiveI2C(int numBytes)  {
   // Bit shift to get sail trim
   int sailTrim  = Wire.read() << 8;
-  stepper1.runSpeed();  // Additional call for smoothness
   sailTrim |= Wire.read();
   input = sailTrim;
-  stepper1.runSpeed();  // Additional call for smoothness
 
   // Bit shift to get input rudder command
   int sailCommand  = Wire.read() << 8;
-  stepper1.runSpeed();  // Additional call for smoothness
   sailCommand |= Wire.read();
   setpoint = sailCommand;
+
+  // Compute booleans
+  if (abs(setpoint - input) < trimBand)  {
+    onTarget = true;
+  } else {
+    onTarget = false;
+  }
+
+  if (setpoint < input && abs(input) < trimCenter)  {
+    onMiddle = true;
+  } else {
+    onMiddle = false;
+  }
+
+  if (setpoint > input && (abs(errorsAverage < errorThreshold || millis() - previousTimeTaught > errorTimeout))  {
+    sheetSlack = true;
+  } else {
+    if (abs(errorsAverage) < trimBand)  {
+      previousTimeTaught = millis();
+      }  else{Serial.println("Timeout");}
+    sheetSlack = false;
+  }
 }
 
 
 // Function to hold in place if the sail position is in the middle (prevent over-winding)
 void pauseSailControl()  {
   stepper1.disableOutputs();  // Stop the stepper motor when close to the target/setpoint
-  int startTime = millis();
-  while (millis() - startTime < pauseTimeCheck)  {
-    delay(100);
+  delay(pauseTimeCheck);
     // Loiter here, then go back and check analogs
-  }
 }
 
 
+// Function for calculating the average of the Circular Buffer. Couldn't find a way to pass the buffer
+// in as an argument, so just doing it as a Global.
 int arrayAverage()  {
   int arrLength = 10 - posErrors.available();
   int sum = 0;
