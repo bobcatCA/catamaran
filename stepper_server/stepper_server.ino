@@ -15,12 +15,11 @@
 #define  stepPin  2
 
 // Define our maximum and minimum speed in steps per second
-#define  errorThreshold -20  // Below which the sail control pauses to avoid excess line release
-#define  errorTimeout 5000  // After which the sheet is assumed to be slack, sail control pauses
+#define  errorTimeout 3000  // After which the sheet is assumed to be slack, sail control pauses
 #define  maximumSpeed 10000
 #define  minimumSpeed 0
 #define  pauseTimeCheck 500  // Time to pause until re-calculating status booleans
-#define  inputUpdateInterval 80  // Frequency of updating the PID calculation, ms
+#define  inputUpdateInterval 50  // Frequency of updating the PID calculation, ms
 #define  trimBand 5  // Acceptable error band, within which sail control pauses
 #define  trimCenter 5  // Center trim range where sail control pauses to avoid over-tension
 
@@ -34,7 +33,7 @@ int currentSpeed = 0;
 int errorsAverage = 0;
 double setpoint, input, output;  // PID variables
 double Kp = 3, Ki = 0, Kd = 0;  // PID constants (to be tuned)
-unsigned long previousTimeAnalog;  // Tracks when the last analog read occured
+unsigned long previousTimeInput;  // Tracks when the last sensor read/PID compute was done
 unsigned long previousTimeTaught;  // Stores the last time the sheet line was known to be taught
 
 // Declare Stepper and PID
@@ -53,7 +52,7 @@ void setup() {
   stepper1.enableOutputs();  // Set enable to TRUE (disabled if input close to setpoint)
 
   // Initialize linked variables
-  previousTimeAnalog = millis();
+  previousTimeInput = millis();
   sailPID.SetMode(AUTOMATIC);
   sailPID.SetOutputLimits(-255, 255);  // Bi-directional for motor CW/CCW
 }
@@ -61,7 +60,7 @@ void setup() {
 void loop() {
 
   // Update analog readings if the interval of time has passed
-  if (millis() - previousTimeAnalog > inputUpdateInterval)  {
+  if (millis() - previousTimeInput > inputUpdateInterval)  {
 
     // Compute new PID output given the new setpoint/input. scale the speed to appropriate limits.
     sailPID.Compute();
@@ -71,7 +70,7 @@ void loop() {
 
     // Compute the new speed setpoint and send to stepper
     currentSpeed = ((output / 255) * (maximumSpeed - minimumSpeed)) + minimumSpeed;
-    previousTimeAnalog = millis();  // Update the last time analogs were read
+    previousTimeInput = millis();  // Update the last time analogs were read
   }
 
   // While the input and setpoint are close, shut down the motor and wait until they diverge again
@@ -80,11 +79,10 @@ void loop() {
     pauseSailControl();
   } else {
     statusMain = true;
-    }
+  }
 
   if (statusMain)  {
     // Run the stepper at the desired speed if no fault conditions are detected
-    stepper1.enableOutputs();
     stepper1.setSpeed(currentSpeed);
     stepper1.runSpeed();
   }
@@ -116,22 +114,23 @@ void receiveI2C(int numBytes)  {
     onMiddle = false;
   }
 
-  if (setpoint > input && (abs(errorsAverage < errorThreshold || millis() - previousTimeTaught > errorTimeout))  {
-    sheetSlack = true;
-  } else {
-    if (abs(errorsAverage) < trimBand)  {
-      previousTimeTaught = millis();
-      }  else{Serial.println("Timeout");}
+  if (errorsAverage > -1 * trimBand)  {
     sheetSlack = false;
+    previousTimeTaught = millis();
+  } else {
+    if (millis() - previousTimeTaught > errorTimeout)  {
+      sheetSlack = true;
+    }  else {} // Return until the timeout condition is reached
   }
 }
 
 
 // Function to hold in place if the sail position is in the middle (prevent over-winding)
 void pauseSailControl()  {
-  stepper1.disableOutputs();  // Stop the stepper motor when close to the target/setpoint
+  //stepper1.disableOutputs();  // Stop the stepper motor when close to the target/setpoint
+  stepper1.stop();  // Stop the stepper when close to target/setpoint
   delay(pauseTimeCheck);
-    // Loiter here, then go back and check analogs
+  // Loiter here, then go back and check analogs
 }
 
 
