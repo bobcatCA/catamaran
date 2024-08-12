@@ -52,7 +52,7 @@ void loop() {
   // Clear LCD and get an incoming data packet from LoRa. TODO: fix onReceive return value.
   lcd.clear();
   String incoming = onReceive(LoRa.parsePacket());
-
+  
   // Get sensor readings for controller pots
   rudderVoltage = analogRead(rudderControlPin);  // Get the sensor voltage and convert to 10-bit value
   int rudderCommandDegrees = map(rudderVoltage, 0, 1023, 0, 270);  // scale it to use it with the servo (value between 800 and 2200 micro-seconds)
@@ -100,13 +100,12 @@ String onReceive(int packetSize) {
   if (packetSize == 0) return "NO PACKET";  // if there's no packet, return
 
   // read packet header bytes:
+  Serial.println("Packet size: ");
+  Serial.print(packetSize);
   int recipient = LoRa.read();          // recipient address
   byte sender = LoRa.read();            // sender address
   int sensorReading = LoRa.read();
-  sensorReading = LoRa.read()<<8 | sensorReading;
   sailTrim = sensorReading;
-
-  String incomingMessage = "";
 
   // if the recipient isn't this device or broadcast,
   if (recipient != localAddress && recipient != 0xFF) {
@@ -122,5 +121,4 @@ String onReceive(int packetSize) {
   Serial.println("Snr: " + String(LoRa.packetSnr()));
   Serial.println();
   */
-  return incomingMessage;
 }

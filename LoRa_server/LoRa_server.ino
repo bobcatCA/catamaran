@@ -23,8 +23,8 @@ unsigned long previousTimeServo = 0;
 // Globals for message incoming/outgoing via LoRa
 byte localAddress = 0xBB;     // address of this device
 byte destination = 0xFF;      // destination to send to
-int sendIntervalLoRa = 2000;          // interval between sends
-int sendIntervalWire = 500;
+int sendIntervalLoRa = 500;          // interval between sends
+int sendIntervalWire = 200;
 unsigned long lastSendTimeLoRa = 0;        // last send time
 unsigned long lastSendTimeWire = 0;
 
@@ -82,20 +82,18 @@ void loop() {
 
 // Function for sending packet over LoRa.
 void sendMessageLoRa(int sensorReading) {
-  sendIntervalLoRa = random(sendIntervalLoRa) + 1000;    // 2 - 3 seconds
+  sendIntervalLoRa = random(sendIntervalLoRa) + 200;    // randomize close to the send interval target
   LoRa.beginPacket();                   // start packet
   LoRa.write(destination);              // add destination address
   LoRa.write(localAddress);             // add sender address
-  LoRa.write(sensorReading & 255);  // Pad so the message is always 16-bit length
-  LoRa.write((sensorReading >> 8) & 0xff);  // Shift 8 bits
+  LoRa.write(sensorReading);
   LoRa.endPacket();                     // finish packet and send it
-  //msgCount++;                           // increment message ID
 }
 
 
 // Function for sending packet over Wire
 void sendMessageWire(int sensorReading1, int sensorReading2)  {
-  sendIntervalWire = random(sendIntervalWire) + 100;  // Update the Wire send interval (500 - 600 ms)
+  sendIntervalWire = random(sendIntervalWire) + 50;  // Update the Wire send interval (500 - 600 ms)
   
   // Wire I2C transmission
   Wire.beginTransmission(4);  // Send to address 4 (stepper server)
